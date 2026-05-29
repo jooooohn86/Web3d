@@ -1,2 +1,4 @@
 include:
-  - "*.glb"
+  - model.glb
+
+plugins: []
