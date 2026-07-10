@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Viewer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0d0d0d; overflow: hidden; font-family: 'Georgia', serif; }
+    #canvas { width: 100vw; height: 100vh; display: block; cursor: grab; }
+    #canvas:active { cursor: grabbing; }
+
+    #navbar {
+      position: fixed; top: 0; left: 0; right: 0; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px;
+      background: rgba(10,10,10,0.55); backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255,255,255,0.08); z-index: 100;
+    }
+    #logo { font-size: 15px; font-weight: 700; letter-spacing: 0.18em; color: #fff; text-transform: uppercase; white-space: nowrap; }
+    #logo span { color: rgba(255,255,255,0.45); font-weight: 400; }
+    #nav-center {
+      display: flex; gap: 36px;
+      position: absolute; left: 50%; transform: translateX(-50%);
+    }
+    #nav-center a {
+      color: rgba(255,255,255,0.6); text-decoration: none;
+      font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+      transition: color 0.2s; cursor: pointer; white-space: nowrap;
+    }
+    #nav-center a:hover { color: #fff; }
+    #nav-right { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+    #qr-btn {
+      background: none; border: 1px solid rgba(255,255,255,0.25);
+      color: rgba(255,255,255,0.7); font-size: 11px; letter-spacing: 0.1em;
+      text-transform: uppercase; padding: 6px 14px; border-radius: 3px;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    }
+    #qr-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    #audio-btn {
+      background: none; border: 1px solid rgba(255,255,255,0.25);
+      color: rgba(255,255,255,0.7); font-size: 14px;
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.2s; flex-shrink: 0;
+    }
+    #audio-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+      display: none; flex-direction: column; justify-content: center; gap: 5px;
+      width: 36px; height: 36px; cursor: pointer; background: none; border: none; padding: 4px;
+    }
+    #menu-btn span { display: block; width: 22px; height: 2px; background: rgba(255,255,255,0.7); border-radius: 2px; }
+    #mobile-menu {
+      display: none; position: fixed; top: 52px; left: 0; right: 0;
+      background: rgba(10,10,10,0.92); backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      flex-direction: column; z-index: 99;
+    }
+    #mobile-menu.show { display: flex; }
+    #mobile-menu a {
+      color: rgba(255,255,255,0.6); text-decoration: none;
+      font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase;
+      padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.06);
+      cursor: pointer; transition: color 0.2s;
+    }
+    #mobile-menu a:hover { color: #fff; }
+
+    #qr-panel {
+      position: fixed; top: 68px; right: 32px;
+      background: rgba(15,15,15,0.92); backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+      padding: 20px; display: none; flex-direction: column;
+      align-items: center; gap: 10px; z-index: 200;
+      max-width: calc(100vw - 32px);
+    }
+    #qr-panel.show { display: flex; }
+    #qr-panel p { font-size: 11px; color: rgba(255,255,255,0.45); letter-spacing: 0.06em; }
+
+    #gallery-modal {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.2); backdrop-filter: blur(4px);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center; z-index: 300;
+    }
+    #gallery-modal.show { display: flex; }
+    #gallery-header {
+      position: absolute; top: 0; left: 0; right: 0; height: 56px;
+      display: flex; align-items: center; justify-content: space-between; padding: 0 32px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    #gallery-title { font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255,255,255,0.6); }
+    #gallery-close { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 24px; cursor: pointer; transition: color 0.2s; line-height: 1; }
+    #gallery-close:hover { color: #fff; }
+    #gallery-img-wrap {
+      width: 80vw; max-width: 1000px; height: 60vh;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; background: rgba(10,10,10,0.85); border-radius: 8px; padding: 16px;
+    }
+    .g-img { position: absolute; max-width: calc(100% - 32px); max-height: calc(100% - 32px); object-fit: contain; border-radius: 4px; transition: opacity 0.3s; }
+    .g-arrow {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.6); font-size: 22px; width: 44px; height: 44px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.2s; user-select: none; z-index: 1;
+    }
+    .g-arrow:hover { background: rgba(255,255,255,0.18); color: #fff; }
+    .g-arrow.disabled { opacity: 0.2; pointer-events: none; }
+    #g-prev { left: -56px; } #g-next { right: -56px; }
+    #gallery-dots { display: flex; gap: 8px; margin-top: 24px; }
+    .g-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.2); cursor: pointer; transition: background 0.2s; }
+    .g-dot.active { background: rgba(255,255,255,0.85); }
+    #gallery-counter { margin-top: 12px; font-size: 11px; color: rgba(255,255,255,0.3); letter-spacing: 0.1em; }
+
+    /* ── 모델 리스트 */
+    #model-list {
+      position: fixed; left: 16px; top: 72px;
+      display: flex; flex-direction: column; gap: 4px;
+      z-index: 100;
+    }
+    .model-list-item {
+      background: rgba(10,10,10,0.55); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.45); font-size: 10px;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 7px 12px; border-radius: 4px;
+      cursor: pointer; transition: all 0.2s;
+      white-space: nowrap; text-align: left;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .model-list-item:hover { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.3); }
+    .model-list-item.active { background: rgba(255,255,255,0.15); color: #fff; border-color: rgba(255,255,255,0.55); }
+    .model-list-num { font-size: 9px; color: rgba(255,255,255,0.25); }
+    .model-list-item.active .model-list-num { color: rgba(255,255,255,0.5); }
+
+    @media (max-width: 640px) {
+      #model-list { display: none; }
+    }
+    #view-buttons {
+      position: fixed; left: 16px; top: 50%; transform: translateY(-50%);
+      display: flex; flex-direction: column; gap: 8px; z-index: 100;
+    }
+    .view-btn {
+      background: rgba(10,10,10,0.55); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.5); font-size: 10px;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 8px 10px; border-radius: 4px;
+      cursor: pointer; transition: all 0.2s;
+      white-space: nowrap; width: 56px; text-align: center;
+    }
+    .view-btn:hover { background: rgba(255,255,255,0.12); color: #fff; border-color: rgba(255,255,255,0.35); }
+    .view-btn.active { background: rgba(255,255,255,0.15); color: #fff; border-color: rgba(255,255,255,0.6); }
+
+    /* ── 정보 패널 */
+    #info-panel {
+      position: fixed; right: 32px; top: 50%; transform: translateY(-50%);
+      width: 260px;
+      background: rgba(10,10,10,0.75); backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+      padding: 24px 20px;
+      display: none; flex-direction: column; gap: 14px; z-index: 100;
+    }
+    #info-panel.show { display: flex; }
+    #info-name  { font-size: 13px; font-weight: 700; color: #fff; letter-spacing: 0.1em; text-transform: uppercase; }
+    #info-type  { font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 0.08em; margin-top: -6px; }
+    .info-div   { width: 100%; height: 1px; background: rgba(255,255,255,0.1); }
+    #info-specs { display: flex; flex-direction: column; gap: 7px; }
+    .spec-row   { display: flex; justify-content: space-between; align-items: baseline; }
+    .spec-label { font-size: 10px; color: rgba(255,255,255,0.35); letter-spacing: 0.08em; text-transform: uppercase; }
+    .spec-value { font-size: 11px; color: rgba(255,255,255,0.8); text-align: right; }
+    #info-desc  { font-size: 11px; color: rgba(255,255,255,0.4); line-height: 1.7; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px; }
+    #info-view-label { font-size: 10px; color: rgba(255,255,255,0.25); letter-spacing: 0.15em; text-transform: uppercase; text-align: center; }
+
+    .arrow {
+      position: fixed; bottom: 64px;
+      width: 44px; height: 44px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; z-index: 100;
+      color: rgba(255,255,255,0.35); transition: color 0.2s, opacity 0.3s;
+      user-select: none;
+    }
+    .arrow:hover { color: rgba(255,255,255,0.9); }
+    .arrow.disabled { opacity: 0.15; pointer-events: none; }
+    #arrow-left  { right: calc(50% + 120px); }
+    #arrow-right { left: calc(50% + 120px); }
+    .arrow-icon  { font-size: 28px; line-height: 1; }
+    .arrow-label { display: none; }
+
+    #model-title {
+      position: fixed; bottom: 64px; left: 50%; transform: translateX(-50%);
+      text-align: center; z-index: 100; pointer-events: none; transition: opacity 0.3s;
+    }
+    #model-title h2 { font-size: 18px; font-weight: 400; color: rgba(255,255,255,0.85); letter-spacing: 0.2em; text-transform: uppercase; }
+    #model-title p  { font-size: 11px; color: rgba(255,255,255,0.35); letter-spacing: 0.1em; margin-top: 4px; }
+
+    #indicator { position: fixed; bottom: 112px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 100; pointer-events: none; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.2); transition: background 0.3s; cursor: pointer; }
+    .dot.active { background: rgba(255,255,255,0.85); }
+
+    #footer {
+      position: fixed; bottom: 0; left: 0; right: 0; height: 52px;
+      display: flex; align-items: center; justify-content: space-between; padding: 0 32px;
+      background: rgba(10,10,10,0.55); backdrop-filter: blur(12px);
+      border-top: 1px solid rgba(255,255,255,0.08); z-index: 100;
+    }
+    #footer-left   { font-size: 11px; color: rgba(255,255,255,0.3); letter-spacing: 0.08em; }
+    #footer-center { position: absolute; left: 50%; transform: translateX(-50%); font-size: 11px; color: rgba(255,255,255,0.25); letter-spacing: 0.06em; white-space: nowrap; pointer-events: none; }
+    #footer-right  { font-size: 11px; color: rgba(255,255,255,0.3); letter-spacing: 0.08em; }
+
+    #loading {
+      position: fixed; inset: 0; background: #0d0d0d;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: rgba(255,255,255,0.4); font-family: sans-serif; font-size: 14px;
+      gap: 16px; transition: opacity 0.5s; z-index: 999;
+    }
+    #progress-bar { width: 160px; height: 2px; background: rgba(255,255,255,0.12); border-radius: 2px; overflow: hidden; }
+    #progress-fill { height: 100%; background: rgba(255,255,255,0.5); width: 0%; transition: width 0.2s; }
+
+    @media (max-width: 640px) {
+      #navbar { padding: 0 16px; height: 52px; }
+      #logo { font-size: 12px; letter-spacing: 0.12em; }
+      #nav-center { display: none; }
+      #menu-btn { display: flex; }
+      #nav-right { gap: 8px; }
+      #qr-btn { padding: 5px 10px; font-size: 10px; }
+      #qr-panel { right: 8px; top: 62px; }
+      #arrow-left  { right: calc(50% + 90px); bottom: 62px; }
+      #arrow-right { left: calc(50% + 90px); bottom: 62px; }
+      #indicator   { bottom: 108px; }
+      #model-title { bottom: 62px; width: 70vw; }
+      #model-title h2 { font-size: 13px; letter-spacing: 0.1em; }
+      #model-title p  { font-size: 10px; }
+      #indicator { bottom: 108px; }
+      .dot { width: 5px; height: 5px; }
+      #footer { padding: 0 16px; height: 48px; }
+      #footer-left, #footer-right { font-size: 10px; }
+      #footer-center { display: none; }
+      #gallery-img-wrap { width: 92vw; height: 50vh; }
+      #g-prev { left: -8px; } #g-next { right: -8px; }
+      #gallery-header { padding: 0 16px; }
+      #view-buttons { left: 4px; gap: 6px; }
+      .view-btn { width: 44px; font-size: 9px; padding: 6px 6px; }
+      #info-panel { right: 8px; width: calc(100vw - 80px); top: auto; bottom: 130px; transform: none; }
+    }
+    @media (min-width: 641px) and (max-width: 900px) {
+      #navbar { padding: 0 20px; }
+      #nav-center { gap: 20px; }
+      #nav-center a { font-size: 11px; }
+      #qr-btn { padding: 5px 10px; font-size: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<nav id="navbar">
+  <div id="logo">3D <span>STUDIO</span></div>
+  <div id="nav-center">
+    <a id="nav-gallery">Gallery</a>
+    <a>Models</a><a>About</a><a>Contact</a>
+  </div>
+  <div id="nav-right">
+    <button id="menu-btn" aria-label="메뉴"><span></span><span></span><span></span></button>
+    <button id="audio-btn" title="배경음악">🔇</button>
+    <button id="qr-btn">QR 공유</button>
+  </div>
+</nav>
+
+<div id="mobile-menu">
+  <a id="mobile-gallery">Gallery</a>
+  <a>Models</a><a>About</a><a>Contact</a>
+</div>
+
+<div id="qr-panel">
+  <div id="qr-canvas"></div>
+  <p>스캔하여 접속</p>
+</div>
+
+<div id="gallery-modal">
+  <div id="gallery-header">
+    <span id="gallery-title"></span>
+    <button id="gallery-close">×</button>
+  </div>
+  <div id="gallery-img-wrap">
+    <div class="g-arrow disabled" id="g-prev">‹</div>
+    <img class="g-img" id="gallery-img-a" src="" alt="gallery" style="opacity:0;" />
+    <img class="g-img" id="gallery-img-b" src="" alt="gallery" style="opacity:0;" />
+    <div class="g-arrow" id="g-next">›</div>
+  </div>
+  <div id="gallery-dots"></div>
+  <div id="gallery-counter"></div>
+</div>
+
+<!-- 모델 리스트 -->
+<div id="model-list"></div>
+
+<!-- 뷰 버튼 -->
+<div id="view-buttons">
+  <button class="view-btn" data-view="front">Front</button>
+  <button class="view-btn" data-view="side">Side</button>
+  <button class="view-btn" data-view="rear">Rear</button>
+  <button class="view-btn" data-view="top">Top</button>
+</div>
+
+<!-- 정보 패널 -->
+<div id="info-panel">
+  <div id="info-name"></div>
+  <div id="info-type"></div>
+  <div class="info-div"></div>
+  <div id="info-specs"></div>
+  <div id="info-desc"></div>
+  <div id="info-view-label"></div>
+</div>
+
+<div class="arrow disabled" id="arrow-left">
+  <span class="arrow-icon">‹</span><span class="arrow-label">Prev</span>
+</div>
+<div class="arrow" id="arrow-right">
+  <span class="arrow-icon">›</span><span class="arrow-label">Next</span>
+</div>
+
+<div id="indicator"></div>
+<div id="model-title"><h2 id="title-name"></h2><p id="title-sub"></p></div>
+
+<footer id="footer">
+  <div id="footer-left">© 2026 3D Studio</div>
+  <div id="footer-center">드래그: 회전 &nbsp;·&nbsp; 스크롤: 확대/축소</div>
+  <div id="footer-right">Seoul, Korea</div>
+</footer>
+
+<div id="loading">
+  <span id="loading-text">불러오는 중...</span>
+  <div id="progress-bar"><div id="progress-fill"></div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<script>
+// ============================================================
+//  ★ 모델 목록
+// ============================================================
+const MODELS = [
+  {
+    file: 'model_01.glb', title: 'Model 01', sub: 'Ninja Turtles Battle Van',
+    images: ['model_01_01.jpg','model_01_02.jpg'],
+    info: {
+      name: 'Ninja Turtles Battle Van', type: '전투용 특수 차량',
+      specs: [
+        { label: '전장', value: '6,200mm' }, { label: '전폭', value: '2,400mm' },
+        { label: '전고', value: '2,800mm' }, { label: '엔진', value: 'V8 터보 6.0L' },
+        { label: '출력', value: '620 hp' },  { label: '장갑', value: '탄소섬유 복합재' },
+        { label: '무장', value: '로켓 런처 × 2' }, { label: '최고속도', value: '280 km/h' },
+      ],
+      desc: '뉴욕 하수도에서 탄생한 닌자거북이 전용 전투 차량. 야간 스텔스 모드와 수중 주행 기능을 갖추고 있으며, 이중 로켓 런처로 적을 제압한다.'
+    }
+  },
+  {
+    file: 'model_02.glb', title: 'Model 02', sub: 'VW Mini Bus Camper',
+    images: ['model_02_01.jpg','model_02_02.jpg','model_02_03.png','model_02_04.jpg','model_02_05.jpg'],
+    info: {
+      name: 'Volkswagen Mini Bus Camper', type: '캠핑 전용 버스',
+      specs: [
+        { label: '전장', value: '4,850mm' }, { label: '전폭', value: '1,920mm' },
+        { label: '전고', value: '2,100mm' }, { label: '엔진', value: '수평대향 4기통 2.0L' },
+        { label: '출력', value: '150 hp' },  { label: '연비', value: '14.5 km/L' },
+        { label: '탑승', value: '최대 6인' }, { label: '취침', value: '팝업 루프 텐트' },
+      ],
+      desc: '서핑보드와 함께 떠나는 자유로운 여정을 위한 레트로 감성 캠핑카. 태양광 패널과 소형 냉장고, 접이식 조리대가 내장되어 완전한 자급자족 캠핑이 가능하다.'
+    }
+  },
+  {
+    file: 'model_03.glb', title: 'Model 03', sub: 'Tesla Model JH',
+    images: ['model_03_01.png','model_03_02.png','model_03_03.png','model_03_04.jpg','model_03_05.jpg','model_03_06.jpg'],
+    info: {
+      name: 'Tesla Model JH', type: '시간 여행 전용 차량',
+      specs: [
+        { label: '전장', value: '4,980mm' }, { label: '전폭', value: '2,010mm' },
+        { label: '전고', value: '1,380mm' }, { label: '구동', value: '양자 트리플 모터' },
+        { label: '출력', value: '1,847 hp' }, { label: '0→100', value: '0.9초' },
+        { label: '시간 범위', value: '±500년' }, { label: '에너지', value: '타키온 셀 × 4' },
+      ],
+      desc: '테슬라와 양자물리학 연구소의 비밀 협업으로 탄생한 단 1대의 프로토타입. 타키온 에너지 셀이 충전되면 시공간 도약이 활성화된다. 현재 위치: 2026년 서울.'
+    }
+  },
+  {
+    file: 'model_04.glb', title: 'Model 04', sub: 'Interactive 3D Viewer',
+    images: [],
+    info: {
+      name: 'Model 04', type: '설명을 입력하세요',
+      specs: [
+        { label: '전장', value: '-' }, { label: '전폭', value: '-' },
+        { label: '전고', value: '-' }, { label: '엔진', value: '-' },
+        { label: '출력', value: '-' }, { label: '최고속도', value: '-' },
+      ],
+      desc: '모델 설명을 입력하세요.'
+    }
+  },
+  {
+    file: 'model_05.glb', title: 'Model 05', sub: 'Interactive 3D Viewer',
+    images: [],
+    info: {
+      name: 'Model 05', type: '설명을 입력하세요',
+      specs: [
+        { label: '전장', value: '-' }, { label: '전폭', value: '-' },
+        { label: '전고', value: '-' }, { label: '엔진', value: '-' },
+        { label: '출력', value: '-' }, { label: '최고속도', value: '-' },
+      ],
+      desc: '모델 설명을 입력하세요.'
+    }
+  },
+];
+const BASE_URL   = 'https://raw.githubusercontent.com/jooooohn86/Web3d/main/';
+const IMG_URL    = BASE_URL + 'images/';
+const SLIDE_GAP  = 30;
+const FLOOR_Y    = -1.6;
+const RING_R     = 3.5;
+const PARTICLE_N = 120;
+
+// ── 배경음악
+const bgm       = new Audio(BASE_URL + 'audio/bgm.mp3');
+bgm.loop        = true;
+bgm.volume      = 0.4;
+let bgmStarted  = false;
+let bgmPlaying  = false;
+
+const audioBtn  = document.getElementById('audio-btn');
+
+function startBgm() {
+  if (!bgmStarted) {
+    bgm.play().then(() => {
+      bgmStarted = true;
+      bgmPlaying = true;
+      audioBtn.textContent = '🔊';
+    }).catch(() => {});
+  }
+}
+
+audioBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!bgmStarted) {
+    startBgm();
+  } else if (bgmPlaying) {
+    bgm.pause();
+    bgmPlaying = false;
+    audioBtn.textContent = '🔇';
+  } else {
+    bgm.play();
+    bgmPlaying = true;
+    audioBtn.textContent = '🔊';
+  }
+});
+
+// 첫 인터랙션 시 자동 시작
+document.addEventListener('click', () => { startBgm(); }, { once: true });
+
+// ── 모델 리스트
+const modelListEl = document.getElementById('model-list');
+MODELS.forEach((m, i) => {
+  const item = document.createElement('div');
+  item.className = 'model-list-item' + (i === 0 ? ' active' : '');
+  item.innerHTML = `<span class="model-list-num">${String(i+1).padStart(2,'0')}</span>${m.title}`;
+  item.addEventListener('click', () => { if (!isSliding) slideTo(i); });
+  modelListEl.appendChild(item);
+});
+
+function updateModelList(idx) {
+  document.querySelectorAll('.model-list-item').forEach((el, i) => el.classList.toggle('active', i === idx));
+}
+
+// ── 햄버거
+const menuBtn    = document.getElementById('menu-btn');
+const mobileMenu = document.getElementById('mobile-menu');
+menuBtn.addEventListener('click', (e) => { e.stopPropagation(); mobileMenu.classList.toggle('show'); });
+document.addEventListener('click', (e) => { if (!mobileMenu.contains(e.target) && e.target !== menuBtn) mobileMenu.classList.remove('show'); });
+mobileMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => mobileMenu.classList.remove('show')));
+
+// ── QR
+const qrPanel = document.getElementById('qr-panel');
+const qrBtn   = document.getElementById('qr-btn');
+new QRCode(document.getElementById('qr-canvas'), { text: window.location.href, width: 160, height: 160, colorDark: '#ffffff', colorLight: '#111111', correctLevel: QRCode.CorrectLevel.M });
+qrBtn.addEventListener('click', () => { qrPanel.classList.toggle('show'); qrBtn.textContent = qrPanel.classList.contains('show') ? 'QR 닫기' : 'QR 공유'; });
+document.addEventListener('click', (e) => { if (!qrPanel.contains(e.target) && e.target !== qrBtn) { qrPanel.classList.remove('show'); qrBtn.textContent = 'QR 공유'; } });
+
+// ── 갤러리
+const galleryModal   = document.getElementById('gallery-modal');
+const galleryImgA    = document.getElementById('gallery-img-a');
+const galleryImgB    = document.getElementById('gallery-img-b');
+const galleryTitle   = document.getElementById('gallery-title');
+const galleryDots    = document.getElementById('gallery-dots');
+const galleryCounter = document.getElementById('gallery-counter');
+const gPrev          = document.getElementById('g-prev');
+const gNext          = document.getElementById('g-next');
+let gImages = [], gIdx = 0, gActive = 'a';
+
+function showGalleryImg(idx) {
+  gIdx = idx;
+  const current = gActive === 'a' ? galleryImgA : galleryImgB;
+  const next    = gActive === 'a' ? galleryImgB : galleryImgA;
+  next.style.opacity = '0';
+  next.src = IMG_URL + gImages[idx];
+  const onLoaded = () => {
+    next.removeEventListener('load', onLoaded); next.removeEventListener('error', onLoaded);
+    next.style.opacity = '1'; current.style.opacity = '0';
+    setTimeout(() => { current.src = ''; gActive = gActive === 'a' ? 'b' : 'a'; }, 320);
+  };
+  next.addEventListener('load', onLoaded); next.addEventListener('error', onLoaded);
+  galleryCounter.textContent = (idx + 1) + ' / ' + gImages.length;
+  document.querySelectorAll('.g-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+  gPrev.classList.toggle('disabled', idx === 0);
+  gNext.classList.toggle('disabled', idx === gImages.length - 1);
+}
+
+function openGallery(modelIdx) {
+  const m = MODELS[modelIdx];
+  if (!m.images || m.images.length === 0) return;
+  gImages = m.images; gIdx = 0; gActive = 'a';
+  galleryTitle.textContent = m.title + ' — Gallery';
+  galleryImgA.src = ''; galleryImgB.src = '';
+  galleryImgA.style.opacity = '0'; galleryImgB.style.opacity = '0';
+  galleryDots.innerHTML = '';
+  gImages.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'g-dot' + (i === 0 ? ' active' : '');
+    d.addEventListener('click', () => showGalleryImg(i));
+    galleryDots.appendChild(d);
+  });
+  galleryCounter.textContent = '1 / ' + gImages.length;
+  gPrev.classList.add('disabled');
+  gNext.classList.toggle('disabled', gImages.length <= 1);
+  galleryModal.classList.add('show');
+  controls.enabled = false;
+  showGalleryImg(0);
+}
+
+function closeGallery() {
+  galleryModal.classList.remove('show');
+  galleryImgA.src = ''; galleryImgB.src = '';
+  if (!isSliding) controls.enabled = true;
+}
+
+gPrev.addEventListener('click', () => { if (gIdx > 0) showGalleryImg(gIdx - 1); });
+gNext.addEventListener('click', () => { if (gIdx < gImages.length - 1) showGalleryImg(gIdx + 1); });
+document.getElementById('gallery-close').addEventListener('click', closeGallery);
+galleryModal.addEventListener('click', (e) => { if (e.target === galleryModal) closeGallery(); });
+document.getElementById('nav-gallery').addEventListener('click', () => openGallery(currentIdx));
+document.getElementById('mobile-gallery').addEventListener('click', () => { mobileMenu.classList.remove('show'); openGallery(currentIdx); });
+
+// ── 키보드
+document.addEventListener('keydown', (e) => {
+  if (galleryModal.classList.contains('show')) {
+    if (e.key === 'ArrowLeft')  showGalleryImg(Math.max(0, gIdx - 1));
+    if (e.key === 'ArrowRight') showGalleryImg(Math.min(gImages.length - 1, gIdx + 1));
+    if (e.key === 'Escape')     closeGallery();
+    return;
+  }
+  if (e.key === 'ArrowLeft')  slideTo(currentIdx - 1);
+  if (e.key === 'ArrowRight') slideTo(currentIdx + 1);
+});
+
+// ============================================================
+//  Three.js 초기화
+// ============================================================
+const canvas       = document.getElementById('canvas');
+const loadingEl    = document.getElementById('loading');
+const loadingTxt   = document.getElementById('loading-text');
+const progressFill = document.getElementById('progress-fill');
+
+// ── 렌더러
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+// ── 씬
+const scene = new THREE.Scene();
+
+// ── Perspective 카메라
+const perspCamera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 500);
+let camBaseZ = 6, camBaseY = 2, modelBoundSize = 5;
+
+// ── Orthographic 카메라 (나중에 크기 갱신)
+const orthoCamera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 500);
+
+// ── 활성 카메라
+let activeCamera = perspCamera;
+let activeView   = null;
+
+// ── 스카이
+const skyMat = new THREE.ShaderMaterial({
+  uniforms: { topColor: { value: new THREE.Color(0x1a1a3a) }, midColor: { value: new THREE.Color(0xcc44aa) }, botColor: { value: new THREE.Color(0x1a0a05) }, horizon: { value: 0.0 }, spread: { value: 0.3 } },
+  vertexShader: `varying vec3 vWorldPos;void main(){vec4 wp=modelMatrix*vec4(position,1.0);vWorldPos=wp.xyz;gl_Position=projectionMatrix*viewMatrix*wp;}`,
+  fragmentShader: `uniform vec3 topColor,midColor,botColor;uniform float horizon,spread;varying vec3 vWorldPos;void main(){float h=normalize(vWorldPos).y;float t1=smoothstep(horizon,horizon+spread,h);float t2=smoothstep(horizon-spread,horizon,h);vec3 col=mix(botColor,midColor,t2);col=mix(col,topColor,t1);gl_FragColor=vec4(col,1.0);}`,
+  side: THREE.BackSide, depthWrite: false,
+});
+const skyMesh = new THREE.Mesh(new THREE.SphereGeometry(200, 32, 32), skyMat);
+scene.add(skyMesh);
+scene.fog = new THREE.FogExp2(0x1a0d08, 0.008);
+
+// ── OrbitControls
+const controls = new THREE.OrbitControls(perspCamera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.minDistance = 1; controls.maxDistance = 40;
+controls.maxPolarAngle = Math.PI * 0.78;
+controls.autoRotate = true; controls.autoRotateSpeed = 0.7;
+
+// ── 조명
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+const keyLight = new THREE.PointLight(0xff5599, 3, 60);
+keyLight.position.set(4, 5, 4); keyLight.castShadow = true;
+keyLight.shadow.mapSize.width = keyLight.shadow.mapSize.height = 2048;
+scene.add(keyLight);
+const fillLight = new THREE.PointLight(0x3355aa, 1.5, 60);
+fillLight.position.set(-5, 2, -3); scene.add(fillLight);
+const rimLight = new THREE.PointLight(0xff4400, 1.0, 40);
+rimLight.position.set(0, -3, -6); scene.add(rimLight);
+
+// ── 파티클 바닥
+const floorGroups = [];
+function createFloorForModel(offsetX) {
+  const group = new THREE.Group();
+  group.position.set(offsetX, FLOOR_Y, 0);
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(RING_R, 0.03, 8, 128),
+    new THREE.MeshBasicMaterial({ color: 0x0033ff, transparent: true, opacity: 0.6 })
+  );
+  ring.rotation.x = Math.PI / 2; group.add(ring);
+  const positions = new Float32Array(PARTICLE_N * 3);
+  const phases = new Float32Array(PARTICLE_N);
+  const angles = new Float32Array(PARTICLE_N);
+  for (let i = 0; i < PARTICLE_N; i++) {
+    angles[i] = (i / PARTICLE_N) * Math.PI * 2; phases[i] = Math.random() * Math.PI * 2;
+    positions[i*3] = Math.cos(angles[i]) * RING_R; positions[i*3+1] = 0; positions[i*3+2] = Math.sin(angles[i]) * RING_R;
+  }
+  const pGeo = new THREE.BufferGeometry();
+  pGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  group.add(new THREE.Points(pGeo, new THREE.PointsMaterial({ color: 0x0044ff, size: 0.08, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending })));
+  scene.add(group);
+  floorGroups.push({ pGeo, phases, angles });
+}
+MODELS.forEach((_, i) => createFloorForModel(i * SLIDE_GAP));
+
+function updateParticles(time) {
+  floorGroups.forEach(({ pGeo, phases, angles }) => {
+    const pos = pGeo.attributes.position.array;
+    for (let i = 0; i < PARTICLE_N; i++) {
+      const rise = (Math.sin(time * 1.8 + phases[i]) + 1) / 2;
+      const angle = angles[i] + time * 0.4;
+      pos[i*3] = Math.cos(angle) * RING_R; pos[i*3+1] = rise * 0.5; pos[i*3+2] = Math.sin(angle) * RING_R;
+    }
+    pGeo.attributes.position.needsUpdate = true;
+  });
+}
+
+// ── 블룸 (perspCamera 기준으로 초기화)
+const BLOOM_LAYER = 1;
+const bloomLayer  = new THREE.Layers(); bloomLayer.set(BLOOM_LAYER);
+const renderPass    = new THREE.RenderPass(scene, perspCamera); // ← perspCamera로 초기화
+const bloomPass     = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.4, 0.1);
+const bloomComposer = new THREE.EffectComposer(renderer);
+bloomComposer.renderToScreen = false; bloomComposer.addPass(renderPass); bloomComposer.addPass(bloomPass);
+const mixPass = new THREE.ShaderPass(new THREE.ShaderMaterial({
+  uniforms: { baseTexture: { value: null }, bloomTexture: { value: bloomComposer.renderTarget2.texture } },
+  vertexShader: `varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+  fragmentShader: `uniform sampler2D baseTexture,bloomTexture;varying vec2 vUv;void main(){gl_FragColor=texture2D(baseTexture,vUv)+vec4(texture2D(bloomTexture,vUv).rgb,0.0);}`
+}), 'baseTexture');
+mixPass.needsSwap = true;
+const finalComposer = new THREE.EffectComposer(renderer);
+finalComposer.addPass(renderPass); finalComposer.addPass(mixPass);
+
+const darkMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+const matCache = {};
+function darkenNonBloom(obj) {
+  if (!obj) return;
+  try {
+    if ((obj.isMesh || obj.isPoints) && !bloomLayer.test(obj.layers)) {
+      if (!obj.material) return;
+      matCache[obj.uuid] = obj.material;
+      obj.material = darkMat;
+    }
+  } catch(e) {}
+}
+function restoreMaterial(obj) {
+  if (!obj) return;
+  try {
+    if ((obj.isMesh || obj.isPoints) && matCache[obj.uuid]) {
+      obj.material = matCache[obj.uuid];
+      delete matCache[obj.uuid];
+    }
+  } catch(e) {}
+}
+
+// ── 뷰 전환
+const VIEW_CONFIGS = {
+  front: { dir: new THREE.Vector3( 0, 0,  1), up: new THREE.Vector3(0,1,0), label: 'Front View' },
+  side:  { dir: new THREE.Vector3( 1, 0,  0), up: new THREE.Vector3(0,1,0), label: 'Side View'  },
+  rear:  { dir: new THREE.Vector3( 0, 0, -1), up: new THREE.Vector3(0,1,0), label: 'Rear View'  },
+  top:   { dir: new THREE.Vector3( 0, 1,  0), up: new THREE.Vector3(0,0,-1), label: 'Top View'  },
+};
+
+const infoPanel     = document.getElementById('info-panel');
+const infoName      = document.getElementById('info-name');
+const infoType      = document.getElementById('info-type');
+const infoSpecs     = document.getElementById('info-specs');
+const infoDesc      = document.getElementById('info-desc');
+const infoViewLabel = document.getElementById('info-view-label');
+
+function updateOrthoSize() {
+  const aspect = window.innerWidth / window.innerHeight;
+  const half   = modelBoundSize * 1.2;
+  orthoCamera.left   = -half * aspect; orthoCamera.right  =  half * aspect;
+  orthoCamera.top    =  half;          orthoCamera.bottom = -half;
+  orthoCamera.updateProjectionMatrix();
+}
+
+function switchToOrtho(viewKey) {
+  if (isSliding) return;
+  activeView = viewKey;
+  const dist = modelBoundSize * 2.5;
+  const cfg  = VIEW_CONFIGS[viewKey];
+  const camPos = new THREE.Vector3(currentOffsetX, 0, 0).addScaledVector(cfg.dir, dist);
+  updateOrthoSize();
+  orthoCamera.position.copy(camPos);
+  orthoCamera.up.copy(cfg.up);
+  orthoCamera.lookAt(currentOffsetX, 0, 0);
+  renderPass.camera = orthoCamera;
+  activeCamera = orthoCamera;
+  controls.enabled    = false;
+  controls.autoRotate = false;
+
+  // 현재 모델 외 숨김
+  loadedModels.forEach((m, i) => { if (m) m.model.visible = (i === currentIdx); });
+
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === viewKey));
+  const m = MODELS[currentIdx].info;
+  infoName.textContent = m.name; infoType.textContent = m.type; infoDesc.textContent = m.desc;
+  infoViewLabel.textContent = cfg.label;
+  infoSpecs.innerHTML = m.specs.map(s => `<div class="spec-row"><span class="spec-label">${s.label}</span><span class="spec-value">${s.value}</span></div>`).join('');
+  infoPanel.classList.add('show');
+}
+
+function switchToPersp() {
+  if (!activeView) return;
+  activeView   = null;
+  activeCamera = perspCamera;
+  renderPass.camera   = perspCamera;
+  controls.enabled    = true;
+  controls.autoRotate = true;
+
+  // 모든 모델 다시 표시
+  loadedModels.forEach(m => { if (m) m.model.visible = true; });
+
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+  infoPanel.classList.remove('show');
+}
+
+document.querySelectorAll('.view-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (activeView === btn.dataset.view) switchToPersp();
+    else switchToOrtho(btn.dataset.view);
+  });
+});
+canvas.addEventListener('click', () => { if (activeView) switchToPersp(); });
+
+// ── 드라코
+const dracoLoader = new THREE.DRACOLoader();
+dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/');
+const gltfLoader = new THREE.GLTFLoader(); gltfLoader.setDRACOLoader(dracoLoader);
+
+// ── 상태
+let currentIdx = 0, isSliding = false, loadedModels = [], currentOffsetX = 0;
+
+// ── 인디케이터
+const indicatorEl = document.getElementById('indicator');
+MODELS.forEach((_, i) => {
+  const dot = document.createElement('div');
+  dot.className = 'dot' + (i === 0 ? ' active' : '');
+  dot.addEventListener('click', () => { if (!isSliding) slideTo(i); });
+  indicatorEl.appendChild(dot);
+});
+function updateDots(idx)   { document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === idx)); }
+function updateArrows(idx) { document.getElementById('arrow-left').classList.toggle('disabled', idx === 0); document.getElementById('arrow-right').classList.toggle('disabled', idx === MODELS.length - 1); }
+function setTitle(idx) {
+  const el = document.getElementById('model-title'); el.style.opacity = '0';
+  setTimeout(() => { document.getElementById('title-name').textContent = MODELS[idx].title; document.getElementById('title-sub').textContent = MODELS[idx].sub; el.style.opacity = '1'; }, 300);
+}
+
+// ── 모델 배치
+function placeModel(gltf, idx) {
+  const model  = gltf.scene;
+  const box    = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  const size   = box.getSize(new THREE.Vector3());
+  model.position.sub(center);
+  model.position.x += idx * SLIDE_GAP;
+  model.position.y += size.y * 0.02;
+  model.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = child.receiveShadow = true;
+      const mats = Array.isArray(child.material) ? child.material : [child.material];
+      mats.forEach(mat => {
+        if (!mat) return;
+
+        // KHR_materials_transmission 감지 → transparent로 대체
+        const ext = mat.userData && mat.userData.gltfExtensions && mat.userData.gltfExtensions.KHR_materials_transmission;
+        if (ext) {
+          const transmission = ext.transmissionFactor !== undefined ? ext.transmissionFactor : 1.0;
+          mat.transparent  = true;
+          mat.opacity      = 1.0 - transmission;
+          mat.depthWrite   = false;
+          mat.side         = THREE.DoubleSide;
+          child.renderOrder = 1;
+          mat.needsUpdate  = true;
+        } else if (mat.transparent && mat.opacity < 1.0) {
+          mat.depthWrite = false; mat.side = THREE.DoubleSide;
+          child.renderOrder = 1; mat.needsUpdate = true;
+        }
+
+        if (mat.emissiveIntensity > 0 && mat.emissive &&
+            (mat.emissive.r > 0 || mat.emissive.g > 0 || mat.emissive.b > 0)) {
+          child.layers.enable(BLOOM_LAYER);
+        }
+      });
+    }
+  });
+  scene.add(model);
+  let mx = null;
+  try {
+    if (gltf.animations && gltf.animations.length > 0) {
+      mx = new THREE.AnimationMixer(model);
+      gltf.animations.forEach(clip => {
+        try {
+          // model_05: Looping 제외, Start만 재생
+          if (MODELS[idx].file === 'model_05.glb' && clip.name === 'Looping') return;
+          mx.clipAction(clip).play();
+        } catch(e) { console.warn('clip 오류:', clip.name, e); }
+      });
+    }
+  } catch(e) { console.warn('mixer 오류:', e); }
+  if (idx === 0) {
+    const maxDim = Math.max(size.x, size.y, size.z);
+    camBaseZ = maxDim * 1.8; camBaseY = maxDim * 0.4; modelBoundSize = maxDim;
+    perspCamera.position.set(0, camBaseY, camBaseZ);
+    controls.target.set(0, 0, 0);
+    controls.minDistance = maxDim * 0.3; controls.maxDistance = maxDim * 6;
+    controls.update();
+  }
+  loadedModels[idx] = { model, mixer: mx };
+}
+
+// ── 슬라이드
+function easeInOut(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+function slideTo(nextIdx) {
+  if (nextIdx === currentIdx || isSliding) return;
+  if (nextIdx < 0 || nextIdx >= MODELS.length) return;
+  if (activeView) switchToPersp(); // 뷰 모드 해제
+  isSliding = true; controls.enabled = false; controls.autoRotate = false;
+  const targetWorldX = nextIdx * SLIDE_GAP;
+  const startPos = perspCamera.position.clone();
+  const startTarget = controls.target.clone();
+  const frontPos   = new THREE.Vector3(currentOffsetX, camBaseY, camBaseZ);
+  const frontTarget = new THREE.Vector3(currentOffsetX, 0, 0);
+  const t0 = performance.now();
+  function stepReturn() {
+    const raw = Math.min((performance.now() - t0) / 500, 1); const e = easeInOut(raw);
+    perspCamera.position.lerpVectors(startPos, frontPos, e);
+    controls.target.lerpVectors(startTarget, frontTarget, e);
+    if (raw < 1) { requestAnimationFrame(stepReturn); }
+    else { perspCamera.position.copy(frontPos); controls.target.copy(frontTarget); stepSlide(); }
+  }
+  function stepSlide() {
+    const startX = currentOffsetX; const t1 = performance.now();
+    function step() {
+      const raw = Math.min((performance.now() - t1) / 800, 1); const e = easeInOut(raw);
+      const x = startX + (targetWorldX - startX) * e;
+      perspCamera.position.x = x; controls.target.x = x; skyMesh.position.x = x;
+      keyLight.position.x = x + Math.sin(Date.now() * 0.001) * 6;
+      fillLight.position.x = x - 5; rimLight.position.x = x;
+      if (raw < 1) { requestAnimationFrame(step); }
+      else {
+        currentOffsetX = targetWorldX;
+        perspCamera.position.set(targetWorldX, camBaseY, camBaseZ);
+        controls.target.set(targetWorldX, 0, 0); controls.update();
+        controls.enabled = true; controls.autoRotate = true;
+        currentIdx = nextIdx; isSliding = false;
+        setTitle(nextIdx); updateDots(nextIdx); updateArrows(nextIdx); updateModelList(nextIdx);
+      }
+    }
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(stepReturn);
+}
+
+document.getElementById('arrow-left').addEventListener('click',  () => slideTo(currentIdx - 1));
+document.getElementById('arrow-right').addEventListener('click', () => slideTo(currentIdx + 1));
+
+// ── 모델 로드
+let loadedCount = 0;
+MODELS.forEach((data, idx) => {
+  gltfLoader.load(BASE_URL + data.file,
+    (gltf) => {
+      placeModel(gltf, idx); loadedCount++;
+      if (loadedCount === MODELS.length) { setTitle(0); updateDots(0); updateArrows(0); loadingEl.style.opacity = '0'; setTimeout(() => { loadingEl.style.display = 'none'; }, 500); }
+    },
+    (progress) => { if (idx === 0 && progress.total > 0) { const pct = Math.round((progress.loaded / progress.total) * 100); progressFill.style.width = pct + '%'; loadingTxt.textContent = `로딩 중... ${pct}%`; } },
+    (error) => { console.error('로드 실패:', data.file, error); loadedCount++; if (loadedCount === MODELS.length) { setTitle(0); updateDots(0); updateArrows(0); loadingEl.style.opacity = '0'; setTimeout(() => { loadingEl.style.display = 'none'; }, 500); } }
+  );
+});
+
+// ── 리사이즈
+window.addEventListener('resize', () => {
+  const aspect = window.innerWidth / window.innerHeight;
+  perspCamera.aspect = aspect; perspCamera.updateProjectionMatrix();
+  updateOrthoSize();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  bloomComposer.setSize(window.innerWidth, window.innerHeight);
+  finalComposer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ── 루프
+let t = 0, prevTime = performance.now();
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now(); const delta = (now - prevTime) / 1000; prevTime = now;
+  if (!isSliding) {
+    t += 0.008;
+    keyLight.position.x  = currentOffsetX + Math.sin(t * 0.35) * 6;
+    keyLight.position.z  = Math.cos(t * 0.35) * 6;
+    fillLight.position.x = currentOffsetX - 5;
+    rimLight.position.x  = currentOffsetX;
+    skyMesh.position.x   = perspCamera.position.x;
+  }
+  updateParticles(t);
+  loadedModels.forEach(m => { if (m && m.mixer) m.mixer.update(delta); });
+  controls.update();
+  scene.traverse(darkenNonBloom);
+  bloomComposer.render();
+  scene.traverse(restoreMaterial);
+  finalComposer.render();
+}
+animate();
+</script>
+</body>
+</html>
